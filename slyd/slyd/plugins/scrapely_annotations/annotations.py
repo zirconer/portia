@@ -87,7 +87,8 @@ def _gen_annotation_info(annotation):
             'item_container': annotation.get('item_container', False),
             'container_id': annotation.get('container_id'),
             'item_id': annotation.get('item_id'),
-            'repeated': annotation.get('repeated', False)
+            'repeated': annotation.get('repeated', False),
+            'siblings': annotation.get('siblings', 0)
         }).replace('"', '&quot;')
     if 'ignore' in annotation or 'ignore_beneath' in annotation:
         if annotation.get('ignore_beneath'):
