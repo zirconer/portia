@@ -456,8 +456,10 @@ class RepeatedContainerExtractor(BaseContainerExtractor, RecordExtractor):
                                           prefix_tokens,
                                           template, 3, True)
         # Heuristic to reduce chance of false positives
-        self.min_jump = int((child.end_index - child.start_index -
-                             len(suffix_tokens)) * MIN_JUMP_DISTANCE)
+        self.min_jump = child.metadata.get('min_jump', -1)
+        if self.min_jump == -1:
+            self.min_jump = int((child.end_index - child.start_index -
+                                 len(suffix_tokens)) * MIN_JUMP_DISTANCE)
         return (array(prefix_tokens), array(suffix_tokens))
 
     def _find_siblings(self, template, containers, container_contents):
