@@ -440,7 +440,10 @@ class RepeatedContainerExtractor(BaseContainerExtractor, RecordExtractor):
                                           template, 2)
         tokens = template.page_tokens[child.start_index + 1:
                                       child.end_index][::-1]
-        max_separator = int(len(tokens) * MAX_RELATIVE_SEPARATOR_MULTIPLIER)
+        max_separator = child.metadata.get('max_separator', -1)
+        if max_separator == -1:
+            max_separator = int(len(tokens) * MAX_RELATIVE_SEPARATOR_MULTIPLIER)
+
         tokens = self._find_tokens(tokens,
                                    (htt.OPEN_TAG, htt.UNPAIRED_TAG),
                                    template)
