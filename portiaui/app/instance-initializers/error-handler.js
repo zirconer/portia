@@ -17,6 +17,11 @@ export function initialize(applicationInstance) {
     const notificationManager = applicationInstance.lookup('service:notification-manager');
 
     function notifyError(err) {
+        // some errors may end up in the handler more than once, e.g. when promises are chained
+        if (err._portiaHandledError) {
+            return;
+        }
+
         let logged = false;
         if (window.NREUM) {
             window.NREUM.noticeError(err);
@@ -49,6 +54,8 @@ export function initialize(applicationInstance) {
                 type: 'danger'
             });
         }
+
+        err._portiaHandledError = true;
     }
 
     Ember.onerror = notifyError;
