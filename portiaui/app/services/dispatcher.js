@@ -41,6 +41,7 @@ export function computedCanAddStartUrl(spiderPropertyName) {
 
 export default Ember.Service.extend({
     browser: Ember.inject.service(),
+    notificationManager: Ember.inject.service(),
     routing: Ember.inject.service('-routing'),
     selectorMatcher: Ember.inject.service(),
     store: Ember.inject.service(),
@@ -65,6 +66,9 @@ export default Ember.Service.extend({
                 routing.transitionTo('projects.project.schema', [schema], {}, true);
             }
             return schema;
+        }, () => {
+            this.handleSaveFailed(schema, "Couldn't create a new data format");
+            return schema;
         });
     },
 
@@ -86,6 +90,9 @@ export default Ember.Service.extend({
                 const routing = this.get('routing');
                 routing.transitionTo('projects.project.schema.field', [field], {}, true);
             }
+            return field;
+        }, () => {
+            this.handleSaveFailed(field, "Couldn't create a new field");
             return field;
         });
     },
@@ -121,6 +128,9 @@ export default Ember.Service.extend({
                 const routing = this.get('routing');
                 routing.transitionTo('projects.project.spider', [spider], {}, true);
             }
+        }, () => {
+            this.handleSaveFailed(spider, "Couldn't create a new spider");
+            return spider;
         });
         return spider;
     },
@@ -129,7 +139,12 @@ export default Ember.Service.extend({
         const urls = spider.get('startUrls');
         if (url && !urls.includes(url)) {
             urls.pushObject(url);
-            spider.save();
+            spider.save({
+                partial: ['startUrls']
+            }).catch(() => {
+                this.handleSaveFailed(spider, "Couldn't add a start url");
+                return spider;
+            });
             return url;
         }
     },
@@ -162,6 +177,9 @@ export default Ember.Service.extend({
                 const routing = this.get('routing');
                 routing.transitionTo('projects.project.spider.sample', [sample], {}, true);
             }
+        }, () => {
+            this.handleSaveFailed(sample, "Couldn't create a new sample");
+            return sample;
         });
         return sample;
     },
@@ -187,6 +205,9 @@ export default Ember.Service.extend({
                 const routing = this.get('routing');
                 routing.transitionTo('projects.project.spider.sample.data.item', [item], {}, true);
             }
+        }, () => {
+            this.handleSaveFailed(item, "Couldn't create a new item");
+            return item;
         });
         return item;
     },
@@ -224,6 +245,9 @@ export default Ember.Service.extend({
             } else if (redirect) {
                 this.selectAnnotation(annotation);
             }
+        }, () => {
+            this.handleSaveFailed(annotation, "Couldn't create a new annotation");
+            return annotation;
         });
         return annotation;
     },
@@ -254,7 +278,12 @@ export default Ember.Service.extend({
                 }
                 return annotation.save(coalesce.length ? {
                     coalesce
-                } : undefined);
+                } : undefined).catch(error => {
+                    for (let {model} of coalesce) {
+                        model.rollbackAttributes();
+                    }
+                    throw error;
+                });
             }));
     },
 
@@ -262,14 +291,14 @@ export default Ember.Service.extend({
         const store = this.get('store');
         const project = annotation.get('ownerSample.spider.project');
         return project.get('extractors').then(extractors => {
-            const existing = extractors.find(extractor => {
+            let extractor = extractors.find(extractor => {
                 return extractor.get('type') === 'type' && extractor.get('value') === type;
             });
             let extractorPromise;
-            if (existing) {
-                extractorPromise = Ember.RSVP.resolve(existing);
+            if (extractor) {
+                extractorPromise = Ember.RSVP.resolve(extractor);
             } else {
-                const extractor = store.createRecord('extractor', {
+                extractor = store.createRecord('extractor', {
                     project,
                     type: 'type',
                     value: type
@@ -278,14 +307,25 @@ export default Ember.Service.extend({
             }
             return extractorPromise.then(extractor => {
                 annotation.get('extractors').pushObject(extractor);
-                return annotation.save().then(() => extractor);
+                return annotation.save({
+                    partial: ['extractors']
+                }).then(() => extractor);
+            }, () => {
+                extractor.rollbackAttributes();
+                this.handleSaveFailed(annotation, "Couldn't add an extractor");
+                return extractor;
             });
         });
     },
 
     addAnnotationRegexExtractor(annotation, extractor) {
         annotation.get('extractors').pushObject(extractor);
-        return annotation.save().then(() => extractor);
+        return annotation.save({
+            partial: ['extractors']
+        }).then(() => extractor, () => {
+            this.handleSaveFailed(annotation, "Couldn't add an extractor");
+            return extractor;
+        });
     },
 
     addNewAnnotationRegexExtractor(annotation) {
@@ -299,14 +339,26 @@ export default Ember.Service.extend({
         return extractor.save().then(extractor => {
             extractor.set('new', true);
             annotation.get('extractors').pushObject(extractor);
-            return annotation.save().then(() => extractor);
+            return annotation.save({
+                partial: ['extractors']
+            }).then(() => extractor);
+        }, () => {
+            extractor.rollbackAttributes();
+            this.handleSaveFailed(annotation, "Couldn't add an extractor");
+            return extractor;
         });
     },
 
     changeAnnotationSource(annotation, attribute) {
         if (annotation) {
             annotation.set('attribute', attribute);
-            annotation.save();
+            annotation.save({
+                partial: ['attribute']
+            }).catch(() => {
+                this.handleSaveFailed(
+                    annotation, "Couldn't change the source attribute of an annotation");
+                return annotation;
+            });
         }
     },
 
@@ -342,14 +394,24 @@ export default Ember.Service.extend({
 
     removeStartUrl(spider, url) {
         spider.get('startUrls').removeObject(url);
-        spider.save();
+        spider.save({
+            partial: ['startUrls']
+        }).catch(() => {
+            this.handleSaveFailed(spider, "Couldn't remove a start url");
+            return spider;
+        });
     },
 
     replaceStartUrl(spider, oldUrl, newUrl) {
         const urls = spider.get('startUrls');
         urls.removeObject(oldUrl);
         urls.addObject(newUrl);
-        spider.save();
+        spider.save({
+            partial: ['startUrls']
+        }).catch(() => {
+            this.handleSaveFailed(spider, "Couldn't change a start url");
+            return spider;
+        });
     },
 
     removeSample(sample) {
@@ -369,7 +431,10 @@ export default Ember.Service.extend({
             routing.transitionTo('projects.project.spider.sample.data', [], {}, true);
         }
         item.deleteRecord();
-        this.saveAnnotationAndRelatedSelectors(item);
+        this.saveAnnotationAndRelatedSelectors(item).catch(() => {
+            this.handleSaveFailed(item, "Couldn't remove an item");
+            return item;
+        });
     },
 
     removeAnnotation(annotation) {
@@ -379,12 +444,21 @@ export default Ember.Service.extend({
             routing.transitionTo('projects.project.spider.sample.data', [], {}, true);
         }
         annotation.deleteRecord();
-        this.saveAnnotationAndRelatedSelectors(annotation);
+        this.saveAnnotationAndRelatedSelectors(annotation).catch(() => {
+            this.handleSaveFailed(annotation, "Couldn't remove an annotation");
+            return annotation;
+        });
     },
 
     removeAnnotationExtractor(annotation, extractor) {
         annotation.get('extractors').removeObject(extractor);
-        annotation.save();
+        annotation.save({
+            partial: ['extractors']
+        }).catch(() => {
+            extractor.rollbackAttributes();
+            this.handleSaveFailed(annotation, "Couldn't remove an extractor");
+            return annotation;
+        });
     },
 
     selectAnnotation(annotation) {
@@ -422,13 +496,19 @@ export default Ember.Service.extend({
         annotation.addElement(element);
         this.saveAnnotationAndRelatedSelectors(annotation).then(() => {
             this.selectAnnotationElement(annotation, element);
+        }, () => {
+            this.handleSaveFailed(annotation, "Couldn't add an element to an annotation");
+            return annotation;
         });
     },
 
     removeElementFromAnnotation(annotation, element) {
         annotation.removeElement(element);
         this.selectAnnotation(annotation);
-        this.saveAnnotationAndRelatedSelectors(annotation);
+        this.saveAnnotationAndRelatedSelectors(annotation).catch(() => {
+            this.handleSaveFailed(annotation, "Couldn't remove an element from an annotation");
+            return annotation;
+        });
     },
 
     updateSampleSelectors(sample) {
@@ -437,5 +517,11 @@ export default Ember.Service.extend({
             updateStructureSelectors(structure, selectorMatcher);
             return null;
         });
+    },
+
+    handleSaveFailed(model, message) {
+        model.rollbackAttributes();
+        this.get('notificationManager').showWarningNotification(
+            message, "The server didn't accept the change. Please try again later.");
     }
 });
