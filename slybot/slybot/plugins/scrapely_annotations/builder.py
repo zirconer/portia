@@ -1,4 +1,5 @@
 import json
+import six
 
 from scrapy import Selector
 from scrapy.utils.spider import arg_to_iter
@@ -337,7 +338,7 @@ def tagid_for_annotation(annotation, page):
 
 def add_repeated_field(annotation, elems, page):
     parent = _get_parent(elems, page)
-    field = annotation['annotations'].values()[0][0]['field']
+    field = next(six.itervalues(annotation['annotations']))[0]['field']
     container_id = '%s#parent' % annotation['id']
     if len(parent):
         tagid = int(parent.attrib.get('data-tagid', 1e9))

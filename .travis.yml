@@ -19,6 +19,8 @@ install:
 - npm install -g bower
 - npm install
 - bower install
+- cd ../slybot
+- pip install -e .[tests]
 - cd ..
 
 before_script:
@@ -32,7 +34,7 @@ before_script:
 - sleep 3 # give xvfb some time to start
 script:
 - cd ./slybot
-- nosetests --with-doctest
+- tox
 - cd ../slyd
 - npm test
 - nosetests --with-doctest

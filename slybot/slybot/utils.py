@@ -5,7 +5,7 @@ import re
 
 from collections import OrderedDict
 
-from scrapely.htmlpage import HtmlPage, HtmlTag, HtmlTagType
+from scrapely.htmlpage import HtmlPage, HtmlTagType
 from scrapy.utils.misc import load_object
 
 
@@ -82,8 +82,15 @@ def load_external_templates(spec_base, spider_name, template_names):
                     if fname.endswith('.html'):
                         with open(os.path.join(samples_sub_dir, fname)) as f:
                             attr = fname[:-len('.html')]
-                            sample[attr] = f.read().decode('utf-8')
+                            sample[attr] = read(f)
             yield _build_sample(sample)
+
+
+def read(fp, encoding='utf-8'):
+    content = fp.read()
+    if hasattr(content, 'decode'):
+        content = content.decode('utf-8')
+    return content
 
 
 def _build_sample(sample):
@@ -253,7 +260,8 @@ def serialize_tag(tag):
 
 
 def _must_add_tagid(element):
-    return (isinstance(element, HtmlTag) and
+    return (hasattr(element, 'tag_type') and
+            hasattr(element, 'tag') and
             element.tag_type != CLOSE_TAG and
             element.tag != 'ins')
 
@@ -281,7 +289,7 @@ def add_tagids(source):
     """
     Applies a unique attribute code number for each tag element in order to be
     identified later in the process of apply annotation"""
-    return _modify_tagids(source)
+    return _modify_tagids(source, True)
 
 
 def remove_tagids(source):
